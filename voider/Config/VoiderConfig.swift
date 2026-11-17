@@ -10,22 +10,24 @@ struct VoiderConfig {
     var workspaces: [String]
     var bindings: [(action: Action, binding: KeyBinding)]
 
-    static let defaultWorkspaces = (1...9).map(String.init)
+    static let defaultWorkspaces = (0...9).map(String.init)
 
     /// Contents written to ~/.config/voider/voider.toml on first launch.
     static var defaultText: String {
         let names = defaultWorkspaces.map { "\"\($0)\"" }.joined(separator: ", ")
-        let focus = defaultWorkspaces.map { "\"workspace \($0)\" = \"alt-\($0)\"" }.joined(separator: "\n")
-        let move = defaultWorkspaces.map { "\"move-to-workspace \($0)\" = \"alt-shift-\($0)\"" }.joined(separator: "\n")
+        let focus = defaultWorkspaces.map { "\"workspace \($0)\" = \"alt-\($0.lowercased())\"" }.joined(separator: "\n")
+        let move = defaultWorkspaces.map { "\"move-to-workspace \($0)\" = \"alt-shift-\($0.lowercased())\"" }.joined(separator: "\n")
         return """
         # voider.toml — configuration for the voider menu bar app
 
-        # Workspace names. Windows start in the first one.
+        # Workspace names (digits and letters work, e.g. ["1", "2", "A", "B"]).
+        # Windows start in the first one. If omitted, workspaces 0-9 are used.
         workspaces = [\(names)]
 
         # "action" = "modifiers-key"
         # Modifiers: alt, shift, cmd, ctrl. Keys: a-z, 0-9, space, tab, return, escape, arrows, ...
         # Actions: "workspace <name>", "move-to-workspace <name>", "reload-config"
+        # If this whole table is omitted, alt-<name> / alt-shift-<name> are bound for every workspace.
         [keybindings]
         \(focus)
         \(move)
@@ -53,7 +55,7 @@ struct VoiderConfig {
         }
 
         guard let table = doc.tables["keybindings"] else {
-            return try parse(VoiderConfig.defaultText, overridingWorkspaces: workspaces)
+            return VoiderConfig(workspaces: workspaces, bindings: defaultBindings(for: workspaces))
         }
 
         var bindings: [(Action, KeyBinding)] = []
@@ -72,16 +74,18 @@ struct VoiderConfig {
         return VoiderConfig(workspaces: workspaces, bindings: bindings)
     }
 
-    /// Used when the file has no `[keybindings]` table: default bindings for the given workspaces.
-    private static func parse(_ defaults: String, overridingWorkspaces workspaces: [String]) throws -> VoiderConfig {
-        var config = try parse(defaults)
-        config.workspaces = workspaces
-        config.bindings = config.bindings.filter {
-            switch $0.action {
-            case .focusWorkspace(let ws), .moveToWorkspace(let ws): return workspaces.contains(ws)
-            case .reloadConfig: return true
-            }
+    /// `alt-<name>` focuses and `alt-shift-<name>` moves, for every workspace whose name is a valid key.
+    /// Workspace bindings win over `alt-shift-r` (reload) if a workspace is named `r`.
+    static func defaultBindings(for workspaces: [String]) -> [(action: Action, binding: KeyBinding)] {
+        var result: [(action: Action, binding: KeyBinding)] = []
+        var used = Set<KeyBinding>()
+        func add(_ action: Action, _ combo: String) {
+            guard let binding = KeyBinding(combo), used.insert(binding).inserted else { return }
+            result.append((action, binding))
         }
-        return config
+        for name in workspaces { add(.focusWorkspace(name), "alt-\(name)") }
+        for name in workspaces { add(.moveToWorkspace(name), "alt-shift-\(name)") }
+        add(.reloadConfig, "alt-shift-r")
+        return result
     }
 }
