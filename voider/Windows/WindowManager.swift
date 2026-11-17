@@ -142,6 +142,14 @@ final class WindowManager {
         guard workspace != activeWorkspace else { return }
 
         ignoreFocusEventsUntil = Date().addingTimeInterval(0.5)
+        if followMovedWindow {
+            lastFocused[workspace] = id
+            activeWorkspace = workspace
+            reconcile()
+            persist()
+            focusAnyWindow(in: workspace)
+            return
+        }
         hide(id)
         persist()
         focusAnyWindow(in: activeWorkspace)
