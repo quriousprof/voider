@@ -43,7 +43,7 @@ final class WindowManager {
         guard !started, AccessibilityPermission.isTrusted else { return }
         started = true
 
-        if let saved = restoredState?.activeWorkspace, workspaces.contains(saved) { activeWorkspace = saved }
+        if let saved = restoredState?.activeWorkspace.uppercased(), workspaces.contains(saved) { activeWorkspace = saved }
         for app in trackableApps() { observe(app) }
         refresh()
         reconcile()
@@ -186,8 +186,9 @@ final class WindowManager {
         var entry = TrackedWindow(pid: pid, element: window, workspace: activeWorkspace)
         let parked = window.position.map(isParked) ?? false
 
-        if let saved = restoredState?.windows.removeValue(forKey: String(id)), saved.pid == pid, workspaces.contains(saved.workspace) {
-            entry.workspace = saved.workspace
+        // Uppercase: state written before workspace names became case-insensitive may hold lowercase names.
+        if let saved = restoredState?.windows.removeValue(forKey: String(id)), saved.pid == pid, workspaces.contains(saved.workspace.uppercased()) {
+            entry.workspace = saved.workspace.uppercased()
             // Only trust the saved origin if the window really is still parked.
             if parked, let origin = saved.hiddenFrom { entry.hiddenFrom = origin }
             else if parked { window.setPosition(rescuePoint) }

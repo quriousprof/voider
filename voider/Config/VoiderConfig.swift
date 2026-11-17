@@ -51,7 +51,9 @@ struct VoiderConfig {
                 }
             }
             guard !workspaces.isEmpty else { throw ConfigError(message: "`workspaces` must not be empty") }
-            guard Set(workspaces).count == workspaces.count else { throw ConfigError(message: "`workspaces` has duplicates") }
+            // Names are case-insensitive, so `a` and `A` collapse into one workspace (first position wins).
+            var seen = Set<String>()
+            workspaces = workspaces.map(Action.normalize(workspace:)).filter { seen.insert($0).inserted }
         }
 
         guard let table = doc.tables["keybindings"] else {

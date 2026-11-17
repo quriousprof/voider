@@ -42,12 +42,15 @@ enum Action: Equatable {
     case moveToWorkspace(String)
     case reloadConfig
 
+    /// Workspace names are case-insensitive: `a` and `A` are the same workspace, stored as `A`.
+    static func normalize(workspace name: String) -> String { name.uppercased() }
+
     /// Parses `workspace N`, `move-to-workspace N` or `reload-config`.
     init?(_ text: String) {
         let parts = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         switch (parts.first, parts.count) {
-        case ("workspace", 2): self = .focusWorkspace(parts[1])
-        case ("move-to-workspace", 2): self = .moveToWorkspace(parts[1])
+        case ("workspace", 2): self = .focusWorkspace(Self.normalize(workspace: parts[1]))
+        case ("move-to-workspace", 2): self = .moveToWorkspace(Self.normalize(workspace: parts[1]))
         case ("reload-config", 1): self = .reloadConfig
         default: return nil
         }
