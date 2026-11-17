@@ -24,8 +24,9 @@ final class WindowManager {
     @ObservationIgnored private var started = false
     /// Focus events right after a switch come from our own hide/show; ignore them.
     @ObservationIgnored private var ignoreFocusEventsUntil = Date.distantPast
-    /// State from the previous run, consumed as its windows are rediscovered.
-    @ObservationIgnored private var restoredState: SavedState? = StateStore.load()
+    /// State from the previous run, consumed as its windows are rediscovered. Loaded in `start()`,
+    /// after any previous instance has quit and written its final state.
+    @ObservationIgnored private var restoredState: SavedState?
 
     init(workspaces: [String] = VoiderConfig.defaultWorkspaces) {
         self.workspaces = workspaces
@@ -43,6 +44,7 @@ final class WindowManager {
         guard !started, AccessibilityPermission.isTrusted else { return }
         started = true
 
+        restoredState = StateStore.load()
         if let saved = restoredState?.activeWorkspace.uppercased(), workspaces.contains(saved) { activeWorkspace = saved }
         for app in trackableApps() { observe(app) }
         refresh()
