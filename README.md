@@ -124,13 +124,6 @@ If the config has an error, the last good config stays active and the menu shows
 - Quitting Voider from the menu puts every hidden window back where it was.
 - If Voider is killed (a crash or a force quit), parked windows can't be restored on the spot. On the next launch Voider reads `state.json` and recovers them. A window found off-screen with no saved entry is moved to the top-left of the screen.
 
-## Known limitations
-
-- Windows on other macOS Spaces are invisible to Voider.
-- Parking assumes a single monitor (it uses the right-most screen edge).
-- There's no config file watcher, so reload manually after editing.
-- Voider isn't on the Mac App Store. It has to control other apps' windows, which App Store apps aren't allowed to do.
-
 ## License
 
 Voider is licensed under the [Apache License 2.0](LICENSE).
