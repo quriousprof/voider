@@ -9,6 +9,8 @@ struct ConfigError: LocalizedError {
 struct VoiderConfig {
     var workspaces: [String]
     var bindings: [(action: Action, binding: KeyBinding)]
+    /// When true, moving a window to another workspace also switches to that workspace.
+    var followMovedWindow = false
 
     static let defaultWorkspaces = (0...9).map(String.init)
 
@@ -23,6 +25,9 @@ struct VoiderConfig {
         # Workspace names (digits and letters work, e.g. ["1", "2", "A", "B"]).
         # Windows start in the first one. If omitted, workspaces 0-9 are used.
         workspaces = [\(names)]
+
+        # Switch to the target workspace after moving a window there (applies to every workspace).
+        follow-moved-window = false
 
         # "action" = "modifiers-key"
         # Modifiers: alt, shift, cmd, ctrl. Keys: a-z, 0-9, space, tab, return, escape, arrows, ...
@@ -56,8 +61,14 @@ struct VoiderConfig {
             workspaces = workspaces.map(Action.normalize(workspace:)).filter { seen.insert($0).inserted }
         }
 
+        var follow = false
+        if let value = doc.root["follow-moved-window"] {
+            guard case .bool(let flag) = value else { throw ConfigError(message: "`follow-moved-window` must be true or false") }
+            follow = flag
+        }
+
         guard let table = doc.tables["keybindings"] else {
-            return VoiderConfig(workspaces: workspaces, bindings: defaultBindings(for: workspaces))
+            return VoiderConfig(workspaces: workspaces, bindings: defaultBindings(for: workspaces), followMovedWindow: follow)
         }
 
         var bindings: [(Action, KeyBinding)] = []
@@ -73,7 +84,7 @@ struct VoiderConfig {
             guard let binding = KeyBinding(combo) else { throw ConfigError(message: "`\(name)`: invalid key `\(combo)`") }
             bindings.append((action, binding))
         }
-        return VoiderConfig(workspaces: workspaces, bindings: bindings)
+        return VoiderConfig(workspaces: workspaces, bindings: bindings, followMovedWindow: follow)
     }
 
     /// `alt-<name>` focuses and `alt-shift-<name>` moves, for every workspace whose name is a valid key.

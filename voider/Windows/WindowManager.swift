@@ -17,6 +17,8 @@ final class WindowManager {
     private(set) var workspaces: [String]
     private(set) var activeWorkspace: String
     private(set) var tracked: [CGWindowID: TrackedWindow] = [:]
+    /// Whether moving a window also switches to its new workspace. Set from config.
+    @ObservationIgnored var followMovedWindow = false
 
     @ObservationIgnored private var lastFocused: [String: CGWindowID] = [:]
     @ObservationIgnored private var observers: [pid_t: AXObserver] = [:]
@@ -284,8 +286,10 @@ final class WindowManager {
 
     private func focusedWindowID() -> CGWindowID? {
         let system = AXUIElementCreateSystemWide()
-        guard let app: AXUIElement = system.attribute(kAXFocusedApplicationAttribute),
-              let window: AXUIElement = app.attribute(kAXFocusedWindowAttribute) else { return nil }
+        let systemApp: AXUIElement? = system.attribute(kAXFocusedApplicationAttribute)
+        // The system-wide query comes back empty for some apps, so fall back to the frontmost app's pid.
+        let app = systemApp ?? NSWorkspace.shared.frontmostApplication.map { AXUIElementCreateApplication($0.processIdentifier) }
+        guard let window: AXUIElement = app?.attribute(kAXFocusedWindowAttribute) else { return nil }
         return window.windowID
     }
 

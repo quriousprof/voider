@@ -48,6 +48,7 @@ final class AppController {
 
     private func applyConfig() {
         let config = configManager.config
+        windowManager.followMovedWindow = config.followMovedWindow
         windowManager.configure(workspaces: config.workspaces)
         hotkeyFailures = HotkeyManager.shared.register(config.bindings)
     }
