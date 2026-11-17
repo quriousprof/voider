@@ -24,6 +24,8 @@ final class WindowManager {
     @ObservationIgnored private var started = false
     /// Focus events right after a switch come from our own hide/show; ignore them.
     @ObservationIgnored private var ignoreFocusEventsUntil = Date.distantPast
+    /// State from the previous run, consumed as its windows are rediscovered.
+    @ObservationIgnored private var restoredState: SavedState? = StateStore.load()
 
     init(workspaces: [String] = VoiderConfig.defaultWorkspaces) {
         self.workspaces = workspaces
@@ -41,8 +43,11 @@ final class WindowManager {
         guard !started, AccessibilityPermission.isTrusted else { return }
         started = true
 
+        if let saved = restoredState?.activeWorkspace, workspaces.contains(saved) { activeWorkspace = saved }
         for app in trackableApps() { observe(app) }
         refresh()
+        reconcile()
+        persist()
 
         let center = NSWorkspace.shared.notificationCenter
         Task {
@@ -76,11 +81,13 @@ final class WindowManager {
         }
         lastFocused = lastFocused.filter { newWorkspaces.contains($0.key) }
         reconcile()
+        persist()
     }
 
     /// Puts every hidden window back where it was. Call before quitting.
     func restoreAll() {
         for id in tracked.keys { show(id) }
+        persist()
     }
 
     // MARK: - Actions
@@ -96,6 +103,7 @@ final class WindowManager {
         ignoreFocusEventsUntil = Date().addingTimeInterval(0.5)
         activeWorkspace = workspace
         reconcile()
+        persist()
         focusAnyWindow(in: workspace)
     }
 
@@ -110,6 +118,7 @@ final class WindowManager {
 
         ignoreFocusEventsUntil = Date().addingTimeInterval(0.5)
         hide(id)
+        persist()
         focusAnyWindow(in: activeWorkspace)
     }
 
@@ -138,6 +147,7 @@ final class WindowManager {
 
         var seen = Set<CGWindowID>()
         var queriedPIDs = Set<pid_t>()
+        var changed = false
 
         for app in trackableApps() {
             let pid = app.processIdentifier
@@ -151,7 +161,8 @@ final class WindowManager {
                 guard window.isStandardWindow, let id = window.windowID else { continue }
                 if tracked[id] == nil {
                     guard !window.isMinimized else { continue }
-                    tracked[id] = TrackedWindow(pid: pid, element: window, workspace: activeWorkspace)
+                    tracked[id] = adopt(window, id: id, pid: pid)
+                    changed = true
                     if let observer = observers[pid] {
                         AXObserverAddNotification(observer, window, kAXUIElementDestroyedNotification as CFString, observerRefcon)
                     }
@@ -163,8 +174,40 @@ final class WindowManager {
         let runningPIDs = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
         for (id, window) in tracked where !seen.contains(id) && (queriedPIDs.contains(window.pid) || !runningPIDs.contains(window.pid)) {
             tracked[id] = nil
+            changed = true
         }
         lastFocused = lastFocused.filter { tracked[$0.value] != nil }
+        if changed { persist() }
+    }
+
+    /// Builds the tracking entry for a newly discovered window, re-adopting its saved workspace
+    /// and parked position from a previous run, or rescuing it if it was left parked off-screen.
+    private func adopt(_ window: AXUIElement, id: CGWindowID, pid: pid_t) -> TrackedWindow {
+        var entry = TrackedWindow(pid: pid, element: window, workspace: activeWorkspace)
+        let parked = window.position.map(isParked) ?? false
+
+        if let saved = restoredState?.windows.removeValue(forKey: String(id)), saved.pid == pid, workspaces.contains(saved.workspace) {
+            entry.workspace = saved.workspace
+            // Only trust the saved origin if the window really is still parked.
+            if parked, let origin = saved.hiddenFrom { entry.hiddenFrom = origin }
+            else if parked { window.setPosition(rescuePoint) }
+        } else if parked {
+            window.setPosition(rescuePoint)
+        }
+        return entry
+    }
+
+    /// Writes workspace assignments and parked positions to disk. No-op until tracking has started,
+    /// so a launch without Accessibility permission can't clobber the previous run's state.
+    private func persist() {
+        guard started else { return }
+        let windows = tracked.reduce(into: [String: SavedWindow]()) { result, entry in
+            result[String(entry.key)] = SavedWindow(pid: entry.value.pid, workspace: entry.value.workspace, hiddenFrom: entry.value.hiddenFrom)
+        }
+        // Keep not-yet-rediscovered windows from the previous run (e.g. an app that was hung at launch).
+        let runningPIDs = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
+        let carried = (restoredState?.windows ?? [:]).filter { runningPIDs.contains($0.value.pid) }
+        StateStore.save(SavedState(activeWorkspace: activeWorkspace, windows: carried.merging(windows) { _, current in current }))
     }
 
     // MARK: - Hiding / showing
@@ -175,6 +218,15 @@ final class WindowManager {
         let primaryHeight = screens.first?.frame.height ?? 0
         // Leave one pixel on-screen; macOS pulls fully off-screen windows back.
         return CGPoint(x: maxX - 1, y: primaryHeight - 1)
+    }
+
+    /// Where rescued windows reappear. Matches the default origin of a fresh window.
+    private var rescuePoint: CGPoint { CGPoint(x: 80, y: 80) }
+
+    /// True if a window's origin sits in the bottom-right parking area (with slack for macOS clamping).
+    private func isParked(_ origin: CGPoint) -> Bool {
+        let parking = offscreenPoint
+        return origin.x >= parking.x - 20 && origin.y >= parking.y - 20
     }
 
     private func hide(_ id: CGWindowID) {
