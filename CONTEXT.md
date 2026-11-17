@@ -1,12 +1,12 @@
 # Voider — Project Context
 
-Voider is a minimal macOS menu bar workspace manager inspired by [AeroSpace](https://github.com/nikitabobko/AeroSpace). It provides virtual workspaces without tiling.
+Voider is a minimal macOS menu bar workspace manager. It provides virtual workspaces without tiling.
 
 ## Behavior
 
 - Lives in the menu bar only (no Dock icon, no main window). The menu bar title is the active workspace.
 - `⌥ + N` switches to workspace N; `⌥ + ⇧ + N` moves the focused window to workspace N (defaults; fully configurable).
-- The menu lists each workspace as `<id> - <app name>` (the app owning that workspace's last-focused window, falling back to the lowest window ID; just `<id>` if empty). Only the active workspace's windows are visible. Others are hidden by parking them just past the bottom-right screen corner (AeroSpace-style), not by minimizing or hiding the app.
+- The menu lists each workspace as `<id> - <app name>` (the app owning that workspace's last-focused window, falling back to the lowest window ID; just `<id>` if empty). Only the active workspace's windows are visible. Others are hidden by parking them just past the bottom-right screen corner, not by minimizing or hiding the app.
 - Focusing a window from another workspace (Cmd-Tab, Dock click) switches to that workspace. Focus events within 0.5s of a switch are ignored (they come from our own hide/show).
 - New windows join the active workspace.
 - Moving a window (`move-to-workspace`) parks it in the target workspace. With `follow-moved-window = true` the active workspace switches to the target instead and the moved window stays focused.
@@ -37,7 +37,7 @@ Voider is a minimal macOS menu bar workspace manager inspired by [AeroSpace](htt
 
 - Swift / SwiftUI, `MenuBarExtra` scene, macOS 26.6+, default actor isolation `MainActor`, Swift Observation (`@Observable`), async/await (no Combine).
 - Accessibility API (`AXUIElement`, `AXObserver`) for window enumeration/positioning; the user must grant Accessibility permission (polled until granted). Window IDs come from private `_AXUIElementGetWindow`.
-- Chromium/CEF/Electron apps (e.g. Spotify) keep their AX tree off until asked: `observe()` sets `AXManualAccessibility` on each app, and `focusedWindowID()` falls back to the frontmost app's pid when the system-wide focused-app query is empty. Without this, moving Spotify's window silently did nothing. (`AXEnhancedUserInterface` is never turned on; it can break window animations in other apps. Apps that already have it on get it switched off around our moves, AeroSpace-style, since it makes AX moves animate.)
+- Chromium/CEF/Electron apps (e.g. Spotify) keep their AX tree off until asked: `observe()` sets `AXManualAccessibility` on each app, and `focusedWindowID()` falls back to the frontmost app's pid when the system-wide focused-app query is empty. Without this, moving Spotify's window silently did nothing. (`AXEnhancedUserInterface` is never turned on; it can break window animations in other apps. Apps that already have it on get it switched off around our moves, since it makes AX moves animate.)
 - Speed: window queries and hide/show moves go through `AXBatch` (`AXHelpers.swift`), one thread per app via `concurrentPerform`, so a switch costs about as much as the slowest app, not the sum of all apps. `switchTo` doesn't do a full refresh (observers keep `tracked` current); it only flushes a pending debounced refresh.
 - Carbon `RegisterEventHotKey` for global hotkeys (swallows the key; no Accessibility needed for hotkeys).
 - TOML: hand-written subset parser (`TOMLParser`), no dependency. Supports comments, `[tables]`, strings, ints, bools, multi-line arrays.

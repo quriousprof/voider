@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import os
 
-/// Private but long-stable API (used by AeroSpace, yabai, etc.) mapping an AX window to its CGWindowID.
+/// Private but long-stable API (used by other window managers) mapping an AX window to its CGWindowID.
 @_silgen_name("_AXUIElementGetWindow")
 nonisolated func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
 
@@ -81,7 +81,7 @@ extension AXUIElement {
     }
 }
 
-/// Batched AX work, run with one thread per app (like AeroSpace), so many apps or a single slow one
+/// Batched AX work, run with one thread per app, so many apps or a single slow one
 /// can't stall a workspace switch. The AX API is thread-safe, hence the `@unchecked Sendable`s.
 nonisolated enum AXBatch {
     struct Window: @unchecked Sendable {
@@ -137,7 +137,7 @@ nonisolated enum AXBatch {
     }
 
     /// Apps with AXEnhancedUserInterface on (set by VoiceOver and some window tools) animate every AX
-    /// move. AeroSpace turns it off for the duration of its moves; so do we.
+    /// move, so it's turned off for the duration of our moves.
     private static func withoutAnimations(pid: pid_t, _ body: () -> Void) {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.5)

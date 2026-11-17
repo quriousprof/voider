@@ -312,6 +312,7 @@ final class WindowManager {
         let id = lastFocused[workspace].flatMap { candidates[$0] != nil ? $0 : nil } ?? candidates.keys.sorted().first
         guard let id, let window = tracked[id] else { return }
         lastFocused[workspace] = id
+        bringOnScreenIfNeeded(id)
         window.element.focus(pid: window.pid)
     }
 

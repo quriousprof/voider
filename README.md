@@ -18,7 +18,7 @@ Switch workspaces with `⌥ 1`, send windows away with `⌥ ⇧ 1`. No tiling, n
 
 ## What is Voider?
 
-Voider is a minimal workspace manager for macOS, inspired by [AeroSpace](https://github.com/nikitabobko/AeroSpace). It gives you virtual workspaces (think "desktops") without taking over your window layout. Your windows stay exactly where you put them. Voider only decides which ones are visible.
+Voider is a minimal workspace manager for macOS. It gives you virtual workspaces (think "desktops") without taking over your window layout. Your windows stay exactly where you put them. Voider only decides which ones are visible.
 
 - Press `⌥ 2` and only the windows that belong to workspace **2** are on screen.
 - Press `⌥ ⇧ 3` and the focused window is sent to workspace **3**.
@@ -40,7 +40,7 @@ Unlike macOS Spaces there are no swipe animations, no full-screen transitions, a
 
 ## How it works
 
-Voider doesn't use macOS Spaces. It tracks every standard window through the Accessibility API and assigns each one to a workspace. To hide a window it **parks it just past the bottom-right corner of the screen** (the same trick AeroSpace uses). It doesn't minimize the window or hide the app. Showing a workspace moves its windows back to where they were.
+Voider doesn't use macOS Spaces. It tracks every standard window through the Accessibility API and assigns each one to a workspace. To hide a window it **parks it just past the bottom-right corner of the screen**. It doesn't minimize the window or hide the app. Showing a workspace moves its windows back to where they were.
 
 | Piece | Role |
 | --- | --- |
@@ -181,7 +181,3 @@ More detail lives in [`CONTEXT.md`](CONTEXT.md).
 ## Contributing
 
 Small, focused commits with conventional one-line messages (`feat:`, `fix:`, `chore:`, and so on). Tests use Swift Testing, and window and workspace logic should stay testable without the Accessibility API.
-
-## Acknowledgements
-
-Inspired by [AeroSpace](https://github.com/nikitabobko/AeroSpace), which pioneered the park-windows-off-screen approach for virtual workspaces on macOS.
