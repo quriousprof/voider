@@ -11,6 +11,7 @@ Switch workspaces with `⌥ 1`, send windows away with `⌥ ⇧ 1`. No tiling, n
 ![macOS](https://img.shields.io/badge/macOS-26.6%2B-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange?logo=swift)
 ![Config](https://img.shields.io/badge/config-TOML-blue)
+![License](https://img.shields.io/badge/license-Apache%202.0-green)
 
 </div>
 
@@ -42,15 +43,6 @@ Unlike macOS Spaces there are no swipe animations, no full-screen transitions, a
 
 Voider doesn't use macOS Spaces. It tracks every standard window through the Accessibility API and assigns each one to a workspace. To hide a window it **parks it just past the bottom-right corner of the screen**. It doesn't minimize the window or hide the app. Showing a workspace moves its windows back to where they were.
 
-| Piece | Role |
-| --- | --- |
-| `WindowManager` | Tracks windows, assigns workspaces, hides and shows them, watches focus through `AXObserver` |
-| `HotkeyManager` | Registers global hotkeys with Carbon |
-| `ConfigManager` / `VoiderConfig` | Creates, loads and validates `~/.config/voider/voider.toml` |
-| `TOMLParser` | A small hand-written TOML subset parser (no dependencies) |
-| `StateStore` | Persists workspace assignments and parked positions to `state.json` |
-| `SingleInstance` | Makes sure only one copy runs, newest launch wins |
-
 ## Requirements
 
 - macOS 26.6 or later
@@ -71,7 +63,7 @@ git clone <this repo>
 open voider.xcodeproj
 ```
 
-Select the `voider` scheme and press `⌘R`. See [Building a release](#building-a-release) to produce a distributable app.
+Select the `voider` scheme and press `⌘R`.
 
 ## Usage
 
@@ -128,56 +120,15 @@ If the config has an error, the last good config stays active and the menu shows
 ## Safety and recovery
 
 - Quitting Voider from the menu puts every hidden window back where it was.
-- If Voider is killed (a crash, or stopping it from Xcode), parked windows can't be restored on the spot. On the next launch Voider reads `state.json` and recovers them. A window found off-screen with no saved entry is moved to the top-left of the screen.
+- If Voider is killed (a crash or a force quit), parked windows can't be restored on the spot. On the next launch Voider reads `state.json` and recovers them. A window found off-screen with no saved entry is moved to the top-left of the screen.
 
 ## Known limitations
 
 - Windows on other macOS Spaces are invisible to Voider.
 - Parking assumes a single monitor (it uses the right-most screen edge).
 - There's no config file watcher, so reload manually after editing.
-- Window IDs come from the private `_AXUIElementGetWindow` function. It has been stable for years and other window managers rely on it, but it means Voider can't be sold through the Mac App Store. App Sandbox is also off, because Voider has to control other apps and read the real `~/.config`.
+- Voider isn't on the Mac App Store. It has to control other apps' windows, which App Store apps aren't allowed to do.
 
-## Building a release
+## License
 
-To share Voider with people who just want to download and use it, ship a **signed, notarized app in a `.dmg`**. Without notarization, Gatekeeper warns on every other Mac that the app "can't be verified".
-
-**You'll need:** a paid [Apple Developer Program](https://developer.apple.com/programs/) membership and a **Developer ID Application** certificate (Xcode → Settings → Accounts → Manage Certificates → `+`).
-
-1. **Enable the hardened runtime.** In the `voider` target's *Signing & Capabilities*, add **Hardened Runtime**. Notarization requires it.
-2. **Archive.** Choose **Product → Archive** (destination: *Any Mac*).
-3. **Export.** In the Organizer, pick the archive and choose **Distribute App → Direct Distribution**. Xcode signs it with your Developer ID, uploads it to Apple for notarization, and exports `voider.app` once Apple approves.
-4. **Package.** Create a disk image:
-   ```sh
-   hdiutil create -volname "Voider" -srcfolder path/to/exported/voider.app \
-     -ov -format UDZO Voider.dmg
-   ```
-   For a nicer drag-to-Applications window, a tool like [`create-dmg`](https://github.com/create-dmg/create-dmg) works well.
-5. **Check it.** Verify the result before uploading:
-   ```sh
-   spctl -a -vv path/to/exported/voider.app   # expect: accepted, source=Notarized Developer ID
-   ```
-6. **Publish.** Create a GitHub Release, attach `Voider.dmg`, and link it from this README.
-
-Prefer the command line? `xcodebuild archive` and `xcodebuild -exportArchive` do the same thing, and `xcrun notarytool submit Voider.dmg --wait` followed by `xcrun stapler staple Voider.dmg` notarizes a disk image directly.
-
-> Anyone installing a build that isn't notarized has to right-click the app and choose **Open** the first time. That's fine for friends and testers but not for public downloads.
-
-## Project layout
-
-```
-voider/
-├── MyApp.swift            App entry (MenuBarExtra)
-├── AppDelegate.swift      Startup
-├── AppController.swift    Wires config, hotkeys and windows together
-├── SingleInstance.swift   Newest launch wins
-├── Config/                TOML parser, config model, key bindings, loader
-├── Hotkeys/               Global hotkeys (Carbon)
-├── Windows/               Accessibility helpers, window manager, state persistence
-└── UI/                    Menu bar label and menu
-```
-
-More detail lives in [`CONTEXT.md`](CONTEXT.md).
-
-## Contributing
-
-Small, focused commits with conventional one-line messages (`feat:`, `fix:`, `chore:`, and so on). Tests use Swift Testing, and window and workspace logic should stay testable without the Accessibility API.
+Voider is licensed under the [Apache License 2.0](LICENSE).
