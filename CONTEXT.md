@@ -52,12 +52,22 @@ Voider is a minimal macOS menu bar workspace manager. It provides virtual worksp
 - `Windows/`: `AXHelpers`, `WindowManager` (state, hide/show, observers), `StateStore` (state.json).
 - `UI/MenuContent.swift`: menu bar label and menu.
 - `Assets.xcassets/AppIcon.appiconset`: app icon (16–1024 px, generated from `voider-logo.png` with `sips`).
-- `README.md`: user-facing docs, including how to build, notarize and distribute a release.
+- `README.md`: user-facing docs only (features, install, usage, config). Keep developer and release details here, not there.
+- `LICENSE`: Apache License 2.0.
 - `plans/` is gitignored (local only); `plans/001-voider-mvp.md` is the original plan.
 
 ## Distribution
 
-Direct download only: sign with a Developer ID, notarize, ship a `.dmg` (steps in `README.md`). Hardened Runtime is currently off and must be enabled before notarizing. Not App Store eligible (sandbox off, private `_AXUIElementGetWindow`).
+Direct download only. Not App Store eligible (sandbox off, private `_AXUIElementGetWindow`). Hardened Runtime is enabled (`ENABLE_HARDENED_RUNTIME = YES`, set by hand in `project.xcproj` because the Xcode settings tool silently didn't apply it). No runtime exceptions are needed: AX, Carbon hotkeys and the private AX symbol all work under it.
+
+Release steps (needs a paid Developer Program membership and a Developer ID Application certificate):
+1. Product → Archive (destination Any Mac).
+2. Organizer → Distribute App → Direct Distribution: signs with Developer ID, notarizes, exports `voider.app`.
+3. `hdiutil create -volname "Voider" -srcfolder voider.app -ov -format UDZO Voider.dmg` (or `create-dmg` for a drag-to-Applications window).
+4. `spctl -a -vv voider.app` should say `accepted, source=Notarized Developer ID`.
+5. Attach `Voider.dmg` to a GitHub Release (the README's install section links to Releases).
+
+CLI alternative: `xcodebuild archive` / `xcodebuild -exportArchive`, then `xcrun notarytool submit Voider.dmg --wait` and `xcrun stapler staple Voider.dmg`.
 
 ## Known gaps
 
