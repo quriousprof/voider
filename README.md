@@ -71,6 +71,7 @@ Select the `voider` scheme and press `⌘R`.
 | --- | --- |
 | `⌥ N` | Switch to workspace `N` |
 | `⌥ ⇧ N` | Move the focused window to workspace `N` |
+| `⌥ ⇥` | Toggle between the current and the previous workspace |
 | `⌥ ⇧ R` | Reload the config |
 
 These are the defaults. Every one of them can be changed in the config. Windows start in the first workspace, and new windows join whichever workspace is active.
@@ -92,6 +93,7 @@ follow-moved-window = false
 "workspace 2" = "alt-2"
 "move-to-workspace 1" = "alt-shift-1"
 "move-to-workspace 2" = "alt-shift-2"
+"workspace-back-and-forth" = "alt-tab"
 "reload-config" = "alt-shift-r"
 ```
 
@@ -99,9 +101,9 @@ follow-moved-window = false
 | --- | --- |
 | `workspaces` | Workspace names, in order. Digits and letters. Case-insensitive (`a` and `A` are the same workspace). Omitted means `0`–`9`. |
 | `follow-moved-window` | `true` switches to the destination workspace after moving a window. Global, applies to every workspace. Default `false`. |
-| `[keybindings]` | `"action" = "modifiers-key"`. If the table is omitted, `alt-<name>` and `alt-shift-<name>` are bound for every workspace. If present, only its entries are bound. |
+| `[keybindings]` | `"action" = "modifiers-key"`. If the table is omitted, `alt-<name>` and `alt-shift-<name>` are bound for every workspace, plus `alt-tab` for back-and-forth. If present, only its entries are bound. |
 
-**Actions:** `workspace <name>`, `move-to-workspace <name>`, `reload-config`
+**Actions:** `workspace <name>`, `move-to-workspace <name>`, `workspace-back-and-forth`, `reload-config`
 
 **Modifiers:** `alt` (or `option`), `shift`, `cmd` (or `command`), `ctrl` (or `control`)
 

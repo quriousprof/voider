@@ -18,8 +18,8 @@ Voider is a minimal macOS menu bar workspace manager. It provides virtual worksp
 - `workspaces = [...]`: names in order; windows start in the first. Omitted → `0`–`9`.
 - `follow-moved-window = true|false` (top-level, global, default `false`): switch to the target workspace after moving a window. A non-bool value is a config error.
 - **Workspace names are case-insensitive and always stored uppercase** (`a` and `A` are the same workspace; duplicates collapse, first position wins). This applies to the `workspaces` list, to names inside action strings, and to saved state.
-- `[keybindings]`: `"action" = "modifiers-key"`. Actions: `workspace <name>`, `move-to-workspace <name>`, `reload-config`. Modifiers: alt, shift, cmd, ctrl.
-- If the `[keybindings]` table is omitted entirely, `alt-<name>` / `alt-shift-<name>` are bound for every workspace whose name is a valid key, plus `alt-shift-r` for reload (dropped if a workspace named `R` claims that combo). If the table is present, only its entries are bound.
+- `[keybindings]`: `"action" = "modifiers-key"`. Actions: `workspace <name>`, `move-to-workspace <name>`, `workspace-back-and-forth` (toggles to the previously active workspace; not persisted), `reload-config`. Modifiers: alt, shift, cmd, ctrl.
+- If the `[keybindings]` table is omitted entirely, `alt-<name>` / `alt-shift-<name>` are bound for every workspace whose name is a valid key, plus `alt-tab` for back-and-forth and `alt-shift-r` for reload (dropped if a workspace named `R` claims that combo). If the table is present, only its entries are bound.
 
 ## Persistence and recovery
 
