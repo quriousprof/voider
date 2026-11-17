@@ -48,6 +48,22 @@ extension AXUIElement {
         return AXValueGetValue(value, .cgPoint, &point) ? point : nil
     }
 
+    var size: CGSize? {
+        guard let value: AXValue = attribute(kAXSizeAttribute) else { return nil }
+        var size = CGSize.zero
+        return AXValueGetValue(value, .cgSize, &size) ? size : nil
+    }
+
+    /// Window frame in AX coordinates (origin at the top-left of the primary screen, y down).
+    var frame: CGRect? {
+        guard let position, let size else { return nil }
+        return CGRect(origin: position, size: size)
+    }
+
+    var isFullScreen: Bool {
+        (attribute("AXFullScreen") as Bool?) ?? false
+    }
+
     func setPosition(_ point: CGPoint) {
         var point = point
         guard let value = AXValueCreate(.cgPoint, &point) else { return }

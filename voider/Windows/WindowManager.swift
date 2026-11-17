@@ -66,6 +66,19 @@ final class WindowManager {
                 scheduleRefresh()
             }
         }
+        // Cmd-Tab and Dock clicks don't always produce a focused-window AX event, so also watch activation.
+        Task {
+            let ownPID = ProcessInfo.processInfo.processIdentifier
+            for await note in center.notifications(named: NSWorkspace.didActivateApplicationNotification) {
+                guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                      app.processIdentifier != ownPID else { continue }
+                let appElement = AXUIElementCreateApplication(app.processIdentifier)
+                AXUIElementSetMessagingTimeout(appElement, 0.5)
+                if let window: AXUIElement = appElement.attribute(kAXFocusedWindowAttribute) {
+                    handleFocusChanged(to: window)
+                }
+            }
+        }
         Task {
             for await _ in NotificationCenter.default.notifications(named: NSApplication.didChangeScreenParametersNotification) {
                 reconcile(force: true)
@@ -306,15 +319,49 @@ final class WindowManager {
         }
     }
 
-    /// If the user focuses a window from another workspace (Cmd-Tab, Dock click), follow it there.
+    /// If the user focuses a window from another workspace (Cmd-Tab, Dock click), follow it there,
+    /// and make sure the window is actually on screen.
     private func handleFocusChanged(to window: AXUIElement) {
         guard Date() >= ignoreFocusEventsUntil, let id = window.windowID else { return }
+        if tracked[id] == nil { refresh() }
         guard let entry = tracked[id] else {
             scheduleRefresh()
             return
         }
         lastFocused[entry.workspace] = id
         if entry.workspace != activeWorkspace { switchTo(entry.workspace) }
+        bringOnScreenIfNeeded(id)
+    }
+
+    // MARK: - Off-screen recovery
+
+    /// Converts an AppKit rect (origin bottom-left of the primary screen) to AX coordinates (top-left, y down).
+    private func axRect(_ rect: CGRect) -> CGRect {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        return CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+    }
+
+    /// Re-centers a focused window that's (almost) entirely off every screen, e.g. after a display was
+    /// unplugged. Partly off-screen windows are left alone so dragging near an edge isn't fought.
+    private func bringOnScreenIfNeeded(_ id: CGWindowID) {
+        guard let window = tracked[id], window.hiddenFrom == nil,
+              !window.element.isFullScreen, let frame = window.element.frame else { return }
+
+        let needed = CGSize(width: min(100, frame.width), height: min(100, frame.height))
+        let isVisible = NSScreen.screens.contains {
+            let overlap = axRect($0.frame).intersection(frame)
+            return !overlap.isNull && overlap.width >= needed.width && overlap.height >= needed.height
+        }
+        guard !isVisible else { return }
+
+        // Center on the screen the mouse is on, keeping the title bar reachable if the window is oversized.
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.screens.first else { return }
+        let area = axRect(screen.visibleFrame)
+        window.element.setPosition(CGPoint(
+            x: max(area.minX, area.midX - frame.width / 2),
+            y: max(area.minY, area.midY - frame.height / 2)
+        ))
     }
 }
 
