@@ -35,7 +35,7 @@ Voider is a minimal macOS menu bar workspace manager. It provides virtual worksp
 
 ## Tech
 
-- Swift / SwiftUI, `MenuBarExtra` scene, macOS 26.6+, default actor isolation `MainActor`, Swift Observation (`@Observable`), async/await (no Combine).
+- Swift / SwiftUI, `MenuBarExtra` scene, macOS 14+ (`@Observable` and argument-less `activate()` set that floor), default actor isolation `MainActor`, Swift Observation (`@Observable`), async/await (no Combine).
 - Accessibility API (`AXUIElement`, `AXObserver`) for window enumeration/positioning; the user must grant Accessibility permission (polled until granted). Window IDs come from private `_AXUIElementGetWindow`.
 - Chromium/CEF/Electron apps (e.g. Spotify) keep their AX tree off until asked: `observe()` sets `AXManualAccessibility` on each app, and `focusedWindowID()` falls back to the frontmost app's pid when the system-wide focused-app query is empty. Without this, moving Spotify's window silently did nothing. (`AXEnhancedUserInterface` is never turned on; it can break window animations in other apps. Apps that already have it on get it switched off around our moves, since it makes AX moves animate.)
 - Speed: window queries and hide/show moves go through `AXBatch` (`AXHelpers.swift`), one thread per app via `concurrentPerform`, so a switch costs about as much as the slowest app, not the sum of all apps. `switchTo` doesn't do a full refresh (observers keep `tracked` current); it only flushes a pending debounced refresh.

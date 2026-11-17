@@ -8,7 +8,7 @@
 
 Switch workspaces with `⌥ 1`, send windows away with `⌥ ⇧ 1`. No tiling, no fuss.
 
-![macOS](https://img.shields.io/badge/macOS-26.6%2B-black?logo=apple)
+![macOS](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)
 ![Swift](https://img.shields.io/badge/Swift-SwiftUI-orange?logo=swift)
 ![Config](https://img.shields.io/badge/config-TOML-blue)
 ![License](https://img.shields.io/badge/license-Apache%202.0-green)
@@ -45,7 +45,7 @@ Voider doesn't use macOS Spaces. It tracks every standard window through the Acc
 
 ## Requirements
 
-- macOS 26.6 or later
+- macOS 14 Sonoma or later
 - **Accessibility permission.** Voider needs it to see and move other apps' windows. It prompts on first launch and starts working as soon as you grant it.
 
 ## Installation
