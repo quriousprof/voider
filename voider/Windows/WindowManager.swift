@@ -37,6 +37,14 @@ final class WindowManager {
         tracked.values.filter { $0.workspace == workspace }.count
     }
 
+    /// Name of the app owning the workspace's last-focused window, if the workspace has any windows.
+    func focusedWindowName(in workspace: String) -> String? {
+        let candidates = tracked.filter { $0.value.workspace == workspace }
+        let id = lastFocused[workspace].flatMap { candidates[$0] != nil ? $0 : nil } ?? candidates.keys.sorted().first
+        guard let id, let window = tracked[id] else { return nil }
+        return NSRunningApplication(processIdentifier: window.pid)?.localizedName
+    }
+
     // MARK: - Lifecycle
 
     /// Begins tracking windows. Requires Accessibility permission.

@@ -21,7 +21,11 @@ struct MenuContent: View {
                 get: { windowManager.activeWorkspace == workspace },
                 set: { _ in controller.perform(.focusWorkspace(workspace)) }
             )) {
-                Text("Workspace \(workspace) (\(windowManager.windowCount(in: workspace)))")
+                if let name = windowManager.focusedWindowName(in: workspace) {
+                    Text("\(workspace) - \(name)")
+                } else {
+                    Text(workspace)
+                }
             }
         }
 
