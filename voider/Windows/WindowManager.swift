@@ -111,16 +111,18 @@ final class WindowManager {
 
     /// Puts every hidden window back where it was. Call before quitting.
     func restoreAll() {
-        for id in tracked.keys { show(id) }
+        let moves = tracked.compactMap { id, window in window.hiddenFrom.map { move(id, window, to: $0) } }
+        _ = AXBatch.move(moves)
+        for id in tracked.keys { tracked[id]?.hiddenFrom = nil }
         persist()
     }
 
     // MARK: - Actions
 
     func switchTo(_ workspace: String) {
-        guard workspaces.contains(workspace) else { return }
-        refresh()
-        guard workspace != activeWorkspace else { return }
+        guard workspaces.contains(workspace), workspace != activeWorkspace else { return }
+        // No full refresh here: observers keep `tracked` current, and querying every app is what made switches lag.
+        flushPendingRefresh()
 
         if let id = focusedWindowID(), tracked[id]?.workspace == activeWorkspace {
             lastFocused[activeWorkspace] = id
@@ -133,9 +135,9 @@ final class WindowManager {
     }
 
     func moveFocusedWindow(to workspace: String) {
-        guard workspaces.contains(workspace) else { return }
-        refresh()
-        guard let id = focusedWindowID(), tracked[id] != nil else { return }
+        guard workspaces.contains(workspace), let id = focusedWindowID() else { return }
+        if tracked[id] == nil { refresh() }
+        guard tracked[id] != nil else { return }
 
         tracked[id]?.workspace = workspace
         if lastFocused[activeWorkspace] == id { lastFocused[activeWorkspace] = nil }
@@ -150,7 +152,7 @@ final class WindowManager {
             focusAnyWindow(in: workspace)
             return
         }
-        hide(id)
+        reconcile()
         persist()
         focusAnyWindow(in: activeWorkspace)
     }
@@ -170,28 +172,32 @@ final class WindowManager {
         refreshTask = Task {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
+            refreshTask = nil
             refresh()
         }
+    }
+
+    /// Runs a debounced refresh now, if one is waiting, so a just-created window isn't missed.
+    private func flushPendingRefresh() {
+        guard let task = refreshTask else { return }
+        task.cancel()
+        refreshTask = nil
+        refresh()
     }
 
     /// Syncs `tracked` with the windows that actually exist. New windows join the active workspace.
     func refresh() {
         guard AccessibilityPermission.isTrusted else { return }
 
+        // Apps are queried in parallel; a failed query (hung app) must not make us forget that app's windows.
+        let found = AXBatch.standardWindows(of: trackableApps().map(\.processIdentifier))
+        let queriedPIDs = Set(found.keys)
         var seen = Set<CGWindowID>()
-        var queriedPIDs = Set<pid_t>()
         var changed = false
 
-        for app in trackableApps() {
-            let pid = app.processIdentifier
-            let appElement = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(appElement, 0.5)
-            // A failed query (hung app) must not make us forget that app's windows.
-            guard let windows: [AXUIElement] = appElement.attribute(kAXWindowsAttribute) else { continue }
-            queriedPIDs.insert(pid)
-
-            for window in windows {
-                guard window.isStandardWindow, let id = window.windowID else { continue }
+        for (pid, windows) in found {
+            for entry in windows {
+                let id = entry.id, window = entry.element
                 if tracked[id] == nil {
                     guard !window.isMinimized else { continue }
                     tracked[id] = adopt(window, id: id, pid: pid)
@@ -263,37 +269,37 @@ final class WindowManager {
         return origin.x >= parking.x - 20 && origin.y >= parking.y - 20
     }
 
-    private func hide(_ id: CGWindowID) {
-        guard var window = tracked[id], window.hiddenFrom == nil, let origin = window.element.position else { return }
-        window.hiddenFrom = origin
-        tracked[id] = window
-        window.element.setPosition(offscreenPoint)
-    }
-
-    private func show(_ id: CGWindowID) {
-        guard var window = tracked[id], let origin = window.hiddenFrom else { return }
-        window.hiddenFrom = nil
-        tracked[id] = window
-        window.element.setPosition(origin)
+    private func move(_ id: CGWindowID, _ window: TrackedWindow, to target: CGPoint, recordOrigin: Bool = false) -> AXBatch.Move {
+        AXBatch.Move(id: id, pid: window.pid, element: window.element, target: target, recordOrigin: recordOrigin)
     }
 
     /// Makes visibility match the active workspace. `force` re-parks hidden windows (e.g. after a screen change).
+    /// All moves go out in one parallel, animation-free batch so the switch lands at once.
     private func reconcile(force: Bool = false) {
+        let parking = offscreenPoint
+        var updated = tracked
+        var moves: [AXBatch.Move] = []
         for (id, window) in tracked {
             if window.workspace == activeWorkspace {
-                show(id)
-            } else if force, window.hiddenFrom != nil {
-                window.element.setPosition(offscreenPoint)
-            } else {
-                hide(id)
+                guard let origin = window.hiddenFrom else { continue }
+                moves.append(move(id, window, to: origin))
+                updated[id]?.hiddenFrom = nil
+            } else if window.hiddenFrom == nil {
+                moves.append(move(id, window, to: parking, recordOrigin: true))
+            } else if force {
+                moves.append(move(id, window, to: parking))
             }
         }
+        guard !moves.isEmpty else { return }
+        for (id, origin) in AXBatch.move(moves) { updated[id]?.hiddenFrom = origin }
+        tracked = updated
     }
 
     // MARK: - Focus
 
     private func focusedWindowID() -> CGWindowID? {
         let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.5)
         let systemApp: AXUIElement? = system.attribute(kAXFocusedApplicationAttribute)
         // The system-wide query comes back empty for some apps, so fall back to the frontmost app's pid.
         let app = systemApp ?? NSWorkspace.shared.frontmostApplication.map { AXUIElementCreateApplication($0.processIdentifier) }
