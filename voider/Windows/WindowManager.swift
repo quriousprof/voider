@@ -321,6 +321,8 @@ final class WindowManager {
         guard AXObserverCreate(pid, axObserverCallback, &observer) == .success, let observer else { return }
 
         let appElement = AXUIElementCreateApplication(pid)
+        // Chromium/Electron apps (Spotify, ...) keep their accessibility tree off until a client asks for it.
+        AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         AXObserverAddNotification(observer, appElement, kAXWindowCreatedNotification as CFString, observerRefcon)
         AXObserverAddNotification(observer, appElement, kAXFocusedWindowChangedNotification as CFString, observerRefcon)
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
