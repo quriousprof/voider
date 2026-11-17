@@ -16,6 +16,8 @@ final class WindowManager {
 
     private(set) var workspaces: [String]
     private(set) var activeWorkspace: String
+    /// The workspace that was active before the current one, for back-and-forth switching.
+    @ObservationIgnored private var previousWorkspace: String?
     private(set) var tracked: [CGWindowID: TrackedWindow] = [:]
     /// Whether moving a window also switches to its new workspace. Set from config.
     @ObservationIgnored var followMovedWindow = false
@@ -101,6 +103,7 @@ final class WindowManager {
         guard !newWorkspaces.isEmpty, newWorkspaces != workspaces else { return }
         workspaces = newWorkspaces
         if !newWorkspaces.contains(activeWorkspace) { activeWorkspace = newWorkspaces[0] }
+        if let previous = previousWorkspace, !newWorkspaces.contains(previous) || previous == activeWorkspace { previousWorkspace = nil }
         for id in tracked.keys where !newWorkspaces.contains(tracked[id]?.workspace ?? "") {
             tracked[id]?.workspace = activeWorkspace
         }
@@ -128,10 +131,17 @@ final class WindowManager {
             lastFocused[activeWorkspace] = id
         }
         ignoreFocusEventsUntil = Date().addingTimeInterval(0.5)
+        previousWorkspace = activeWorkspace
         activeWorkspace = workspace
         reconcile()
         persist()
         focusAnyWindow(in: workspace)
+    }
+
+    /// Switches to the previously active workspace. Pressing it again comes back.
+    func switchToPrevious() {
+        guard let previous = previousWorkspace else { return }
+        switchTo(previous)
     }
 
     func moveFocusedWindow(to workspace: String) {
@@ -146,6 +156,7 @@ final class WindowManager {
         ignoreFocusEventsUntil = Date().addingTimeInterval(0.5)
         if followMovedWindow {
             lastFocused[workspace] = id
+            previousWorkspace = activeWorkspace
             activeWorkspace = workspace
             reconcile()
             persist()

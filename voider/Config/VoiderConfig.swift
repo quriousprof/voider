@@ -31,11 +31,12 @@ struct VoiderConfig {
 
         # "action" = "modifiers-key"
         # Modifiers: alt, shift, cmd, ctrl. Keys: a-z, 0-9, space, tab, return, escape, arrows, ...
-        # Actions: "workspace <name>", "move-to-workspace <name>", "reload-config"
+        # Actions: "workspace <name>", "move-to-workspace <name>", "workspace-back-and-forth", "reload-config"
         # If this whole table is omitted, alt-<name> / alt-shift-<name> are bound for every workspace.
         [keybindings]
         \(focus)
         \(move)
+        "workspace-back-and-forth" = "alt-tab"
         "reload-config" = "alt-shift-r"
 
         """
@@ -78,7 +79,7 @@ struct VoiderConfig {
             switch action {
             case .focusWorkspace(let ws), .moveToWorkspace(let ws):
                 guard workspaces.contains(ws) else { throw ConfigError(message: "`\(name)`: no workspace named `\(ws)`") }
-            case .reloadConfig:
+            case .workspaceBackAndForth, .reloadConfig:
                 break
             }
             guard let binding = KeyBinding(combo) else { throw ConfigError(message: "`\(name)`: invalid key `\(combo)`") }
@@ -98,6 +99,7 @@ struct VoiderConfig {
         }
         for name in workspaces { add(.focusWorkspace(name), "alt-\(name)") }
         for name in workspaces { add(.moveToWorkspace(name), "alt-shift-\(name)") }
+        add(.workspaceBackAndForth, "alt-tab")
         add(.reloadConfig, "alt-shift-r")
         return result
     }

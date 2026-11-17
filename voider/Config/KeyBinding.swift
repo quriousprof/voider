@@ -40,17 +40,20 @@ struct KeyBinding: Hashable {
 enum Action: Equatable {
     case focusWorkspace(String)
     case moveToWorkspace(String)
+    /// Toggles between the current and the previously active workspace.
+    case workspaceBackAndForth
     case reloadConfig
 
     /// Workspace names are case-insensitive: `a` and `A` are the same workspace, stored as `A`.
     static func normalize(workspace name: String) -> String { name.uppercased() }
 
-    /// Parses `workspace N`, `move-to-workspace N` or `reload-config`.
+    /// Parses `workspace N`, `move-to-workspace N`, `workspace-back-and-forth` or `reload-config`.
     init?(_ text: String) {
         let parts = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
         switch (parts.first, parts.count) {
         case ("workspace", 2): self = .focusWorkspace(Self.normalize(workspace: parts[1]))
         case ("move-to-workspace", 2): self = .moveToWorkspace(Self.normalize(workspace: parts[1]))
+        case ("workspace-back-and-forth", 1): self = .workspaceBackAndForth
         case ("reload-config", 1): self = .reloadConfig
         default: return nil
         }

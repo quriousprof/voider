@@ -32,6 +32,7 @@ final class AppController {
         switch action {
         case .focusWorkspace(let name): windowManager.switchTo(name)
         case .moveToWorkspace(let name): windowManager.moveFocusedWindow(to: name)
+        case .workspaceBackAndForth: windowManager.switchToPrevious()
         case .reloadConfig: reloadConfig()
         }
     }
