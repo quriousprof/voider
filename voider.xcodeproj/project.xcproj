@@ -34,7 +34,7 @@
       "build-settings": {
         "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "CODE_SIGN_STYLE": "Automatic",
-        "CURRENT_PROJECT_VERSION": "2",
+        "CURRENT_PROJECT_VERSION": "3",
         "DEVELOPMENT_TEAM": "3H3S259942",
         "ENABLE_APP_SANDBOX": "NO",
         "ENABLE_HARDENED_RUNTIME": "YES",
@@ -56,7 +56,7 @@
         "LD_RUNPATH_SEARCH_PATHS": "@executable_path/Frameworks",
         "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "@executable_path/../Frameworks",
         "MACOSX_DEPLOYMENT_TARGET": "14.0",
-        "MARKETING_VERSION": "0.1.1",
+        "MARKETING_VERSION": "0.1.2",
         "PRODUCT_BUNDLE_IDENTIFIER": "com.quriousprof.voider",
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "REGISTER_APP_GROUPS": "YES",
