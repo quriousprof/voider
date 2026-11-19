@@ -81,6 +81,16 @@ extension AXUIElement {
     }
 }
 
+nonisolated enum WindowServer {
+    /// IDs of every window the WindowServer knows about, on all Spaces and including off-screen ones.
+    /// Nil if the query failed. Needs no Screen Recording permission (only window titles do).
+    static func windowIDs() -> Set<CGWindowID>? {
+        guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
+              !list.isEmpty else { return nil }
+        return Set(list.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value })
+    }
+}
+
 /// Batched AX work, run with one thread per app, so many apps or a single slow one
 /// can't stall a workspace switch. The AX API is thread-safe, hence the `@unchecked Sendable`s.
 nonisolated enum AXBatch {

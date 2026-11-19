@@ -8,10 +8,14 @@ import Observation
 final class WindowManager {
     struct TrackedWindow {
         let pid: pid_t
-        let element: AXUIElement
+        /// Replaced when a refresh hands back a new element for the same window (e.g. a Chromium app rebuilt its AX tree).
+        var element: AXUIElement
         var workspace: String
         /// Where the window was before being hidden; non-nil means it's currently parked off-screen.
         var hiddenFrom: CGPoint?
+        /// False while the window still exists but its app's AX listing leaves it out (wake, slow app,
+        /// another Space, ordered out). Such windows keep their workspace but aren't picked for focus.
+        var isListed = true
     }
 
     private(set) var workspaces: [String]
@@ -25,6 +29,7 @@ final class WindowManager {
     @ObservationIgnored private var lastFocused: [String: CGWindowID] = [:]
     @ObservationIgnored private var observers: [pid_t: AXObserver] = [:]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var settleTask: Task<Void, Never>?
     @ObservationIgnored private var started = false
     /// Focus events right after a switch come from our own hide/show; ignore them.
     @ObservationIgnored private var ignoreFocusEventsUntil = Date.distantPast
@@ -94,7 +99,29 @@ final class WindowManager {
         Task {
             for await _ in NotificationCenter.default.notifications(named: NSApplication.didChangeScreenParametersNotification) {
                 reconcile(force: true)
+                scheduleSettle()
             }
+        }
+        for name in [NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification] {
+            Task {
+                for await _ in center.notifications(named: name) { scheduleSettle() }
+            }
+        }
+    }
+
+    /// After wake or a display change, macOS may pull parked windows back on screen and apps answer AX
+    /// slowly for a while, so re-sync and re-park a couple of times while things settle.
+    private func scheduleSettle() {
+        settleTask?.cancel()
+        settleTask = Task {
+            for delay in [1, 3] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { return }
+                refresh()
+                reconcile(force: true)
+                persist()
+            }
+            settleTask = nil
         }
     }
 
@@ -198,18 +225,26 @@ final class WindowManager {
 
     /// Syncs `tracked` with the windows that actually exist. New windows join the active workspace.
     func refresh() {
-        guard AccessibilityPermission.isTrusted else { return }
+        // Screens can briefly be empty during wake; parking checks against them would misfire.
+        guard AccessibilityPermission.isTrusted, !NSScreen.screens.isEmpty else { return }
 
         // Apps are queried in parallel; a failed query (hung app) must not make us forget that app's windows.
         let found = AXBatch.standardWindows(of: trackableApps().map(\.processIdentifier))
-        let queriedPIDs = Set(found.keys)
         var seen = Set<CGWindowID>()
         var changed = false
 
         for (pid, windows) in found {
             for entry in windows {
                 let id = entry.id, window = entry.element
-                if tracked[id] == nil {
+                if let existing = tracked[id] {
+                    if !CFEqual(existing.element, window) {
+                        tracked[id]?.element = window
+                        if let observer = observers[pid] {
+                            AXObserverAddNotification(observer, window, kAXUIElementDestroyedNotification as CFString, observerRefcon)
+                        }
+                    }
+                    if !existing.isListed { tracked[id]?.isListed = true }
+                } else {
                     guard !window.isMinimized else { continue }
                     tracked[id] = adopt(window, id: id, pid: pid)
                     changed = true
@@ -221,10 +256,19 @@ final class WindowManager {
             }
         }
 
+        // AX listings transiently leave windows out (after wake, under load, Chromium AX rebuilds, other Spaces).
+        // Forgetting such a window would make the next refresh re-adopt it into the active workspace, so only
+        // forget windows the WindowServer no longer has, or whose app is gone.
         let runningPIDs = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
-        for (id, window) in tracked where !seen.contains(id) && (queriedPIDs.contains(window.pid) || !runningPIDs.contains(window.pid)) {
-            tracked[id] = nil
-            changed = true
+        let existingIDs = WindowServer.windowIDs()
+        for (id, window) in tracked where !seen.contains(id) {
+            let isGone = !runningPIDs.contains(window.pid) || existingIDs.map { !$0.contains(id) } ?? false
+            if isGone {
+                tracked[id] = nil
+                changed = true
+            } else if window.isListed {
+                tracked[id]?.isListed = false
+            }
         }
         lastFocused = lastFocused.filter { tracked[$0.value] != nil }
         if changed { persist() }
@@ -287,6 +331,8 @@ final class WindowManager {
     /// Makes visibility match the active workspace. `force` re-parks hidden windows (e.g. after a screen change).
     /// All moves go out in one parallel, animation-free batch so the switch lands at once.
     private func reconcile(force: Bool = false) {
+        // With no screens (mid-wake) the parking point would be (-1, -1), i.e. on screen.
+        guard !NSScreen.screens.isEmpty else { return }
         let parking = offscreenPoint
         var updated = tracked
         var moves: [AXBatch.Move] = []
@@ -319,7 +365,8 @@ final class WindowManager {
     }
 
     private func focusAnyWindow(in workspace: String) {
-        let candidates = tracked.filter { $0.value.workspace == workspace }
+        // Unlisted windows may be ordered out; raising one could reopen a window the user closed.
+        let candidates = tracked.filter { $0.value.workspace == workspace && $0.value.isListed }
         let id = lastFocused[workspace].flatMap { candidates[$0] != nil ? $0 : nil } ?? candidates.keys.sorted().first
         guard let id, let window = tracked[id] else { return }
         lastFocused[workspace] = id

@@ -26,6 +26,8 @@ Voider is a minimal macOS menu bar workspace manager. It provides virtual worksp
 - `~/.config/voider/state.json` is written after every change: active workspace, and per window (keyed by CGWindowID) its pid, workspace, and original position if parked.
 - State is loaded in `WindowManager.start()` (not at init, so it runs after any previous instance has exited) and re-adopted as windows are rediscovered (pid must match).
 - Nothing is saved until tracking has started, so launching without Accessibility permission can't overwrite saved state.
+- A tracked window is only forgotten when its app has quit or the WindowServer (`CGWindowListCopyWindowInfo`) no longer has its ID. AX listings drop windows transiently (after wake, slow apps, Chromium AX rebuilds); forgetting them made the next refresh re-adopt every parked window into the active workspace. Windows missing from the AX listing but still alive are kept, marked `isListed = false`, and skipped when picking a window to focus.
+- On wake (`didWake`/`screensDidWake`) and screen changes, a settle pass runs refresh + forced re-park after 1s and again 3s later, since macOS can pull parked windows back on screen while displays reconfigure. `refresh`/`reconcile` do nothing while `NSScreen.screens` is empty.
 - Rescue: a window found in the parking area with no valid saved entry is moved to (80, 80). The parked check has ~20px slack for macOS clamping and is unverified against real clamping behavior.
 - Quitting normally restores all hidden windows. A killed process (Xcode stop = SIGKILL, crash) can't, so recovery happens on next launch via the state file.
 
