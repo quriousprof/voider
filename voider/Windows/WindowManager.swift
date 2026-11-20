@@ -367,11 +367,15 @@ final class WindowManager {
     private func focusAnyWindow(in workspace: String) {
         // Unlisted windows may be ordered out; raising one could reopen a window the user closed.
         let candidates = tracked.filter { $0.value.workspace == workspace && $0.value.isListed }
-        let id = lastFocused[workspace].flatMap { candidates[$0] != nil ? $0 : nil } ?? candidates.keys.sorted().first
+        // No remembered window yet (e.g. right after launch): take the workspace's front-most window,
+        // which is the one most recently in front there, since parking doesn't change stacking order.
+        let id = lastFocused[workspace].flatMap { candidates[$0] != nil ? $0 : nil }
+            ?? WindowServer.frontToBackWindowIDs().first { candidates[$0] != nil }
+            ?? candidates.keys.sorted().first
         guard let id, let window = tracked[id] else { return }
         lastFocused[workspace] = id
         bringOnScreenIfNeeded(id)
-        window.element.focus(pid: window.pid)
+        window.element.focus(pid: window.pid, windowID: id)
     }
 
     // MARK: - AX observers

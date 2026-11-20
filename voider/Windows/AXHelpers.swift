@@ -73,11 +73,52 @@ nonisolated extension AXUIElement {
 }
 
 extension AXUIElement {
-    /// Brings the window to the front and activates its app.
-    func focus(pid: pid_t) {
+    /// Brings the window to the front, makes it key, and activates its app.
+    func focus(pid: pid_t, windowID: CGWindowID) {
+        // `activate()` is only a request since macOS 14 and is denied to apps that aren't active
+        // themselves, which Voider never is. SkyLight activates the app with exactly this window key.
+        if !SkyLight.focus(windowID: windowID, pid: pid) {
+            AXUIElementSetAttributeValue(self, kAXMainAttribute as CFString, kCFBooleanTrue)
+            NSRunningApplication(processIdentifier: pid)?.activate()
+        }
         AXUIElementPerformAction(self, kAXRaiseAction as CFString)
-        AXUIElementSetAttributeValue(self, kAXMainAttribute as CFString, kCFBooleanTrue)
-        NSRunningApplication(processIdentifier: pid)?.activate()
+    }
+}
+
+/// Private SkyLight calls that window switchers (AltTab, yabai) use to focus a specific window from a
+/// background app. Looked up at runtime, so if they ever disappear `focus` falls back to `activate()`.
+private enum SkyLight {
+    private typealias GetProcessForPID = @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
+    private typealias SetFrontProcess = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, CGWindowID, UInt32) -> CGError
+    private typealias PostEventRecord = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> CGError
+
+    private static let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
+    private static let getProcessForPID = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "GetProcessForPID") // RTLD_DEFAULT
+        .map { unsafeBitCast($0, to: GetProcessForPID.self) }
+    private static let setFrontProcess = handle.flatMap { dlsym($0, "_SLPSSetFrontProcessWithOptions") }
+        .map { unsafeBitCast($0, to: SetFrontProcess.self) }
+    private static let postEventRecord = handle.flatMap { dlsym($0, "SLPSPostEventRecordTo") }
+        .map { unsafeBitCast($0, to: PostEventRecord.self) }
+
+    /// Returns false if the calls are unavailable or the app couldn't be brought to the front.
+    static func focus(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard let getProcessForPID, let setFrontProcess, let postEventRecord else { return false }
+        var psn = ProcessSerialNumber()
+        // 0x200 = kCPSUserGenerated: treat it like a user click, so the activation isn't refused.
+        guard getProcessForPID(pid, &psn) == noErr, setFrontProcess(&psn, windowID, 0x200) == .success else { return false }
+
+        // Synthesized "make key window" event record (layout from AltTab/yabai): sent once as
+        // mouse-down (0x01) and once as mouse-up (0x02), targeting the window ID at offset 0x3c.
+        var bytes = [UInt8](repeating: 0, count: 0xf8)
+        bytes[0x04] = 0xf8
+        bytes[0x3a] = 0x10
+        withUnsafeBytes(of: windowID.littleEndian) { bytes.replaceSubrange(0x3c..<0x40, with: $0) }
+        for i in 0x20..<0x30 { bytes[i] = 0xff }
+        bytes[0x08] = 0x01
+        _ = postEventRecord(&psn, &bytes)
+        bytes[0x08] = 0x02
+        _ = postEventRecord(&psn, &bytes)
+        return true
     }
 }
 
@@ -88,6 +129,12 @@ nonisolated enum WindowServer {
         guard let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
               !list.isEmpty else { return nil }
         return Set(list.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value })
+    }
+
+    /// On-screen window IDs, front-most first. Parked windows count: they keep one pixel on screen.
+    static func frontToBackWindowIDs() -> [CGWindowID] {
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        return list.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }
     }
 }
 
