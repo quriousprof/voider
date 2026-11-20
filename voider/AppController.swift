@@ -8,6 +8,7 @@ final class AppController {
 
     let configManager = ConfigManager()
     let windowManager = WindowManager()
+    let updater = Updater()
     private(set) var isAccessibilityTrusted = AccessibilityPermission.isTrusted
     /// Hotkeys that failed to register (usually because another app owns the combo).
     private(set) var hotkeyFailures: [String] = []
@@ -16,6 +17,7 @@ final class AppController {
         configManager.bootstrap()
         HotkeyManager.shared.onAction = { [weak self] action in self?.perform(action) }
         applyConfig()
+        updater.startAutomaticChecks()
 
         if !isAccessibilityTrusted { AccessibilityPermission.prompt() }
         Task {
