@@ -32,6 +32,10 @@ Voider is a minimal macOS menu bar workspace manager. It provides virtual worksp
 - Rescue: a window found in the parking area with no valid saved entry is moved to (80, 80). The parked check has ~20px slack for macOS clamping and is unverified against real clamping behavior.
 - Quitting normally restores all hidden windows. A killed process (Xcode stop = SIGKILL, crash) can't, so recovery happens on next launch via the state file.
 
+## Updates
+
+`Updates/Updater.swift`, no dependency (not Sparkle). Checks `api.github.com/repos/quriousprof/voider/releases/latest` 30s after launch and daily (silent on failure), and on demand from the menu. A release is offered if its tag (minus `v`) is numerically higher than `CFBundleShortVersionString` and it has a `Voider.dmg` asset. Install: download the DMG to an `itemReplacementDirectory` on the app's volume, `hdiutil attach` it, `ditto` out the first `.app`, then refuse unless bundle ID matches, version equals the tag, the signature satisfies a Developer ID requirement for the running app's own team ID, and `spctl --assess` accepts it. Then `replaceItemAt` swaps the bundle and the new copy is launched with `createsNewApplicationInstance`; `SingleInstance` in the new copy quits the old one (which restores hidden windows as usual). Refuses when the app is translocated, its folder isn't writable, or the running copy is unsigned. Releases must keep the asset name, the DMG layout (one `.app` at the root) and tag == marketing version, or the updater will refuse them.
+
 ## Single instance
 
 `SingleInstance.claim()` runs first in `applicationDidFinishLaunching`. Newest launch wins: it asks older copies (same bundle ID) to quit, force-quits any that don't within 3s, then takes an exclusive `flock` on `~/.config/voider/voider.lock` (released by the kernel on any exit). If a newer copy already exists, the older one exits immediately (`exit(0)`, no cleanup).

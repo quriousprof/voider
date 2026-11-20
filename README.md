@@ -38,6 +38,7 @@ Unlike macOS Spaces there are no swipe animations, no full-screen transitions, a
 - **Crash-safe.** Window assignments are persisted, and windows left off-screen by a crash are recovered on the next launch.
 - **Works with Chromium/Electron apps** such as Spotify, which hide their accessibility tree until asked.
 - **Single instance.** Launching a new copy replaces the old one.
+- **One-click updates.** *Check for Updates* in the menu, then *Update and Restart*. Voider also checks quietly once a day.
 
 ## How it works
 
@@ -55,6 +56,8 @@ Voider doesn't use macOS Spaces. It tracks every standard window through the Acc
 1. Download the latest `Voider.dmg` from the [Releases](../../releases) page.
 2. Drag **Voider** into `Applications` and open it.
 3. When prompted, grant access in **System Settings → Privacy & Security → Accessibility**.
+
+Later versions install from the menu: **Check for Updates**, then **Update to X and Restart**. Voider downloads the release, checks it's signed and notarized by the same developer, replaces itself and relaunches. Keep Voider in a folder you can write to (like `Applications`) for this to work.
 
 ### From source
 
